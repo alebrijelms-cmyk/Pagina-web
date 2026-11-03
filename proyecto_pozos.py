@@ -10,6 +10,7 @@ import os
 import random
 import sys
 import time
+import unicodedata
 from collections import Counter
 
 from openpyxl import load_workbook
@@ -19,6 +20,7 @@ CONTADOR = "contador_metodos.json"
 CAMPOS = ["id_titulo_concesion", "volumen_extraido_m3", "fecha_concesion", "nombre_titular", "estado",
           "municipio", "profundidad_pozo_m", "estatus_pozo", "caudal_litros_segundo", "uso_principal"]
 CLAVES = {1: "id_titulo_concesion", 2: "volumen_extraido_m3", 3: "fecha_concesion"}
+CAMPOS_TEXTO = {"nombre_titular", "estado", "municipio", "estatus_pozo", "uso_principal"}
 METODOS = {  # métodos asignados según el campo clave (Sección 3 del documento)
     1: ["Radix Sort", "Counting Sort"],
     2: ["Bucket Sort"],
@@ -210,6 +212,22 @@ def busqueda_binaria(filas, idx, valor):
     return [], ct
 
 
+def _norm(texto):
+    """Minúsculas y sin acentos: 'Michoacán' -> 'michoacan'."""
+    t = unicodedata.normalize("NFD", str(texto).lower())
+    return "".join(c for c in t if unicodedata.category(c) != "Mn")
+
+
+def busqueda_lineal_texto(filas, idx, texto):
+    """Búsqueda lineal tolerante para campos de texto: ignora mayúsculas/acentos y acepta coincidencia parcial."""
+    ct, hallados, q = Cont(), [], _norm(texto).strip()
+    for f in filas:
+        ct.c += 1
+        if q in _norm(f[idx]):
+            hallados.append(f)
+    return hallados, ct
+
+
 # ───────────────────────────── Utilidades ─────────────────────────────
 
 def cargar(ruta):
@@ -294,7 +312,13 @@ def main():
         except ValueError:
             print("Valor no válido para ese campo.")
     t0 = time.perf_counter_ns()
-    hallados, cts = (busqueda_binaria if tipo == "Binaria" else busqueda_lineal)(base, idx_b, valor)
+    if tipo == "Binaria":
+        fn_b = busqueda_binaria
+    elif campo_b in CAMPOS_TEXTO:
+        fn_b = busqueda_lineal_texto
+    else:
+        fn_b = busqueda_lineal
+    hallados, cts = fn_b(base, idx_b, valor)
     t_bus = time.perf_counter_ns() - t0
     print(f"\nBúsqueda {tipo} en {campo_b} = {valor}: {len(hallados)} coincidencia(s), "
           f"{cts.c:,} comparaciones, {t_bus:,} nanosegundos.")
