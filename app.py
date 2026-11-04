@@ -352,3 +352,44 @@ with a2:
     st.subheader("Todos los visitantes")
     mostrar_alfa("Método Alfa (acumulado)", contador_global())
     st.caption("El acumulado se reinicia si el servidor se reinicia.")
+
+# ── Bibliografía y recursos
+st.divider()
+st.header("📚 Bibliografía y recursos utilizados")
+
+st.subheader("Fuentes de datos")
+st.markdown(
+    "- Comisión Nacional del Agua [CONAGUA]. (s. f.). *Registro Público de Derechos de Agua (REPDA)*. "
+    "Gobierno de México. Reporte de títulos de concesión (`ReporteRepda.csv`). "
+    "[https://www.gob.mx/conagua](https://www.gob.mx/conagua)\n"
+    "- Gobierno de México. (s. f.). *Catálogo de Datos Abiertos del Gobierno Federal*. "
+    "[https://www.datos.gob.mx/](https://www.datos.gob.mx/)"
+)
+st.caption("Los campos municipio, profundidad, estatus y caudal del pozo no provienen de estas fuentes: "
+           "fueron simulados (ver «Origen de los datos» al inicio de la página).")
+
+st.subheader("Herramientas de software")
+st.markdown(
+    "- Python Software Foundation. *Python*. [https://www.python.org](https://www.python.org)\n"
+    "- Streamlit Inc. *Streamlit* (interfaz web y Streamlit Community Cloud para el despliegue público). "
+    "[https://docs.streamlit.io](https://docs.streamlit.io)\n"
+    "- The pandas development team. *pandas* (manejo de tablas de datos). "
+    "[https://pandas.pydata.org](https://pandas.pydata.org)\n"
+    "- Gazoni, E. y Clark, C. *openpyxl* (lectura y escritura de archivos Excel). "
+    "[https://openpyxl.readthedocs.io](https://openpyxl.readthedocs.io)\n"
+    "- GitHub, Inc. *GitHub* (repositorio del código). [https://github.com](https://github.com)"
+)
+
+st.subheader("Uso de inteligencia artificial")
+st.markdown(
+    "- Anthropic. (2026). *Claude* (modelo Claude Sonnet 5.5) [Asistente de inteligencia artificial]. "
+    "[https://claude.ai](https://claude.ai)"
+)
+st.markdown(
+    "Claude se utilizó como asistente de programación durante todo el proyecto para: analizar el documento de "
+    "requerimientos; identificar los campos del Excel y mapearlos a las columnas del REPDA; escribir los scripts "
+    "en Python que preparan los 15,000 registros; implementar los algoritmos de ordenamiento (Radix, Counting, "
+    "Bucket, Quick, Merge y Heap Sort) y de búsqueda (lineal y binaria) con su medición en nanosegundos; "
+    "construir la interfaz web con Streamlit; depurar errores; preparar el despliegue público; y proponer mejoras "
+    "a partir de una retroalimentación integral del proyecto."
+)
