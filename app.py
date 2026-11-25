@@ -2,6 +2,7 @@
 Proyecto 5 - Interfaz web (Streamlit). Reutiliza las funciones de proyecto_pozos.py.
 Ejecutar local:  streamlit run app.py
 """
+import hashlib
 import json
 import os
 import random
@@ -17,7 +18,7 @@ import proyecto_pozos as pp  # mismas funciones: cargar, algoritmos, búsquedas,
 ARCHIVO = "Pozos_Riego_15000.xlsx"
 CONTADOR = "contador_web.json"   # Método Alfa general
 PERFILES = "perfiles_web.json"   # perfiles de usuario y su Método Alfa individual
-PATRON_ALIAS = re.compile(r"[\w .\-]{2,30}")
+PATRON_ALIAS = re.compile(r"(?=.*\w)[\w .\-]{2,30}")
 
 st.set_page_config(page_title="Pozos de Riego · REPDA", page_icon="💧", layout="wide")
 
@@ -31,6 +32,13 @@ footer {visibility: hidden;}
 .banner h1 {color: #FFFFFF !important; font-size: 1.85rem !important; margin: 0 !important;
             padding: 0 !important; letter-spacing: .2px;}
 .banner p {color: #D6E2EF !important; margin: .4rem 0 0 0 !important; font-size: .95rem;}
+.login-header {background: linear-gradient(90deg, #14304D 0%, #1F4E79 100%); padding: 1.3rem 1.8rem;
+               border-radius: 10px; text-align: center; margin-bottom: 1.6rem;}
+.login-header h2 {color: #FFFFFF !important; margin: 0 !important; font-size: 1.55rem !important;}
+.login-sub {background: #E8EFF7; color: #14304D; display: inline-block; padding: .25rem 1.1rem;
+            border-radius: 20px; font-weight: 600; font-size: .92rem; margin-top: .5rem;}
+.login-footer {background: #14304D; color: #D6E2EF; text-align: center; padding: .85rem 1rem;
+               border-radius: 8px; margin-top: 2rem; font-size: .88rem;}
 .seccion {border-left: 4px solid #1F4E79; padding-left: .75rem; margin: .3rem 0 .9rem 0;
           font-size: 1.35rem; font-weight: 600; letter-spacing: .2px;}
 div[data-testid="stMetric"] {border: 1px solid rgba(128,128,128,.35); border-radius: 6px;
@@ -121,6 +129,10 @@ def guardar_json(ruta, obj):
         pass  # algunos hospedajes son de solo lectura; los datos siguen en memoria
 
 
+def hash_clave(clave):
+    return hashlib.sha256(clave.encode("utf-8")).hexdigest()
+
+
 @st.cache_resource
 def datos():
     t0 = time.perf_counter_ns()
@@ -138,31 +150,64 @@ def contador_global():
 
 @st.cache_resource
 def perfiles_global():
-    """Perfiles: {clave: {"nombre": alias, "conteo": {método: veces}}}."""
+    """Perfiles: {clave: {"nombre": alias, "clave_hash": str|None, "conteo": {método: veces}}}."""
     crudo, ok = cargar_json(PERFILES, {}), {}
     if isinstance(crudo, dict):
         for k, v in crudo.items():
             if isinstance(v, dict) and isinstance(v.get("nombre"), str) and isinstance(v.get("conteo"), dict):
+                ch = v.get("clave_hash")
                 ok[k] = {"nombre": v["nombre"][:30],
+                         "clave_hash": ch if isinstance(ch, str) else None,
                          "conteo": {m: n for m, n in v["conteo"].items()
                                     if m in pp.ALGORITMOS and isinstance(n, int)}}
     return ok
 
 
-def entrar_perfil(alias):
-    """Crea el perfil si no existe, o inicia sesión si ya existe. Devuelve (ok, mensaje)."""
+def autenticar_usuario(alias, clave_txt, usar_clave=True):
+    """Gestiona el acceso desde la pantalla principal (con clave, sin clave o invitado)."""
     alias = " ".join(alias.split())
+    clave_txt = clave_txt.strip()
+
+    # Acceso rápido como invitado si pulsa "Ingresar sin clave" sin escribir nombre
+    if not usar_clave and not alias:
+        st.session_state.perfil = None
+        st.session_state.usuario_nombre = "Invitado"
+        st.session_state.autenticado = True
+        return True, "Sesión iniciada sin clave (modo invitado)."
+
     if not PATRON_ALIAS.fullmatch(alias):
-        return False, "El alias debe tener de 2 a 30 caracteres: letras, números, espacios, punto, guion o guion bajo."
+        return False, "El nombre de usuario debe tener de 2 a 30 caracteres (letras, números, espacios, punto o guion)."
+
     clave = alias.casefold()
     perfiles = perfiles_global()
     if clave in perfiles:
+        reg = perfiles[clave]
+        if reg.get("clave_hash"):
+            if not usar_clave or not clave_txt:
+                return False, f"El usuario `{reg['nombre']}` requiere su clave para ingresar."
+            if hash_clave(clave_txt) != reg["clave_hash"]:
+                return False, "Clave incorrecta para este usuario."
         st.session_state.perfil = clave
-        return True, f"Sesión iniciada en el perfil `{perfiles[clave]['nombre']}`."
-    perfiles[clave] = {"nombre": alias, "conteo": {}}
+        st.session_state.usuario_nombre = reg["nombre"]
+        st.session_state.autenticado = True
+        return True, f"Bienvenido de nuevo, `{reg['nombre']}`."
+
+    perfiles[clave] = {
+        "nombre": alias,
+        "clave_hash": hash_clave(clave_txt) if (usar_clave and clave_txt) else None,
+        "conteo": {},
+    }
     guardar_json(PERFILES, perfiles)
     st.session_state.perfil = clave
-    return True, f"Perfil `{alias}` creado."
+    st.session_state.usuario_nombre = alias
+    st.session_state.autenticado = True
+    return True, f"Usuario `{alias}` registrado."
+
+
+def cerrar_sesion():
+    st.session_state.autenticado = False
+    st.session_state.perfil = None
+    st.session_state.usuario_nombre = None
 
 
 def a_df(filas):
@@ -226,34 +271,139 @@ def mostrar_alfa(titulo, conteo):
 
 
 ss = st.session_state
+ss.setdefault("autenticado", False)
+ss.setdefault("n_preview", 30)
 
-# ───────────── Barra lateral: perfil de usuario ─────────────
-with st.sidebar:
-    st.markdown("### Perfil de usuario")
-    st.caption("Crea un perfil para llevar tu propio Método Alfa, separado del general. Los perfiles no tienen "
-               "contraseña y sus alias son visibles para los demás visitantes: usa un alias, no datos personales.")
-    with st.form("form_perfil"):
-        alias_in = st.text_input("Alias del perfil", max_chars=30, placeholder="ej. Equipo 3")
-        entrar = st.form_submit_button("Entrar o crear perfil")
-    if entrar:
-        ok, texto = entrar_perfil(alias_in)
-        (st.success if ok else st.error)(texto)
-    activo = perfiles_global().get(ss.get("perfil"))
-    if activo:
-        st.markdown(f"Perfil activo: **`{activo['nombre']}`**")
-        st.caption("Tu Método Alfa individual está en la pestaña «5 · Método Alfa».")
-        if st.button("Cerrar perfil", key="btn_cerrar_perfil"):
-            ss.perfil = None
+# ───────────── Pantalla Principal: Registro de Usuario (Avance 2 - Pág. 1) ─────────────
+if not ss.autenticado:
+    st.markdown(
+        '<div class="login-header">'
+        '<h2>Métodos de Ordenamiento y Búsqueda</h2>'
+        '<div class="login-sub">Proyecto 5 · Distribución y monitoreo de pozos de riego agrícola</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    _, col_centro, _ = st.columns([1, 1.35, 1])
+    with col_centro:
+        with st.container(border=True):
+            st.markdown("<h3 style='text-align:center; margin-bottom:0.2rem;'>👤 Registro de Usuario</h3>",
+                        unsafe_allow_html=True)
+            st.markdown(
+                "<p style='text-align:center; color:gray; font-size:0.92rem;'>"
+                "Ingresa tus datos para comenzar a explorar los métodos de ordenamiento y búsqueda.</p>",
+                unsafe_allow_html=True,
+            )
+            with st.form("form_registro_principal"):
+                usuario_in = st.text_input("Nombre de usuario", max_chars=30, placeholder="ej. Equipo 6 / Leonardo")
+                clave_in = st.text_input("Clave (opcional)", type="password", max_chars=40,
+                                         placeholder="Opcional: protege tu historial y Método Alfa")
+                b1, b2 = st.columns(2)
+                entrar_btn = b1.form_submit_button("Ingresar", type="primary", use_container_width=True)
+                sin_clave_btn = b2.form_submit_button("Ingresar sin clave", use_container_width=True)
+
+            if entrar_btn:
+                ok, msg = autenticar_usuario(usuario_in, clave_in, usar_clave=True)
+                if ok:
+                    st.rerun()
+                else:
+                    st.error(msg)
+            elif sin_clave_btn:
+                ok, msg = autenticar_usuario(usuario_in, "", usar_clave=False)
+                if ok:
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+            st.caption("Si ingresas con un nombre de usuario, tu Método Alfa individual se guardará por separado "
+                       "del general. Si pulsas «Ingresar sin clave» dejando el nombre vacío, entrarás como Invitado.")
+
+    st.markdown(
+        '<div class="login-footer">'
+        '<strong>Equipo 6:</strong> Leonardo Mendoza Santana y Ricardo &nbsp;|&nbsp; '
+        '<strong>IA utilizada:</strong> Claude (Anthropic)'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+# ───────────── Encabezado y Menú de Usuario (Avance 2 - Pág. 3) ─────────────
+activo = perfiles_global().get(ss.get("perfil"))
+nombre_usuario = activo["nombre"] if activo else (ss.get("usuario_nombre") or "Invitado")
+
+col_banner, col_user = st.columns([4.6, 1.4], vertical_alignment="center")
+with col_banner:
+    st.markdown(
+        '<div class="banner" style="margin-bottom:0;"><h1>Distribución y monitoreo de pozos de riego agrícola</h1>'
+        '<p>Proyecto 5 · Registro Público de Derechos de Agua (REPDA – CONAGUA) · Sector primario: gestión del agua</p>'
+        '</div>', unsafe_allow_html=True)
+
+with col_user:
+    menu_contenedor = st.popover(f"👤 {nombre_usuario}", use_container_width=True) \
+        if hasattr(st, "popover") else st.expander(f"👤 {nombre_usuario}")
+    with menu_contenedor:
+        opcion_menu = st.radio(
+            "Menú de usuario",
+            ["Perfil", "Configuración", "? Ayuda"],
+            label_visibility="collapsed",
+            key="menu_usuario_opcion",
+        )
+        st.divider()
+
+        if opcion_menu == "Perfil":
+            st.markdown(f"**Usuario:** `{nombre_usuario}`")
+            if activo:
+                estado_clave = "Protegido con clave" if activo.get("clave_hash") else "Sin clave"
+                cont_ind = {m: n for m, n in activo["conteo"].items() if n > 0}
+                alfa_ind = ", ".join(alfa_de(cont_ind)[0]) if cont_ind else "Sin registros aún"
+                st.caption(f"Estado: {estado_clave}")
+                st.write(f"Ordenaciones propias: **{sum(cont_ind.values())}**")
+                st.write(f"Método Alfa individual: **{alfa_ind}**")
+                if st.button("Reiniciar Alfa del usuario", key="btn_reset_alfa_user", use_container_width=True):
+                    activo["conteo"] = {}
+                    guardar_json(PERFILES, perfiles_global())
+                    st.success("Alfa individual reiniciado (no afecta al general).")
+                    st.rerun()
+            else:
+                st.caption("Modo invitado: las ejecuciones solo suman al Método Alfa general.")
+                nuevo_alias = st.text_input("Activar perfil con nombre:", max_chars=30, key="alias_desde_menu")
+                if st.button("Crear / activar perfil", key="btn_activar_menu", use_container_width=True):
+                    ok, msg = autenticar_usuario(nuevo_alias, "", usar_clave=False)
+                    if ok:
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+        elif opcion_menu == "Configuración":
+            ss.n_preview = st.slider(
+                "Registros en vista previa (inicio/fin)",
+                min_value=10, max_value=100, value=ss.n_preview, step=5, key="slider_preview"
+            )
+            if activo:
+                nueva_clave = st.text_input("Nueva clave (vacío para quitar)", type="password",
+                                            max_chars=40, key="cfg_nueva_clave")
+                if st.button("Guardar clave", key="btn_guardar_clave", use_container_width=True):
+                    activo["clave_hash"] = hash_clave(nueva_clave.strip()) if nueva_clave.strip() else None
+                    guardar_json(PERFILES, perfiles_global())
+                    st.success("Clave actualizada.")
+            else:
+                st.caption("Inicia con un nombre de usuario para configurar clave de perfil.")
+
+        elif opcion_menu == "? Ayuda":
+            st.markdown(
+                "**Guía rápida:**\n"
+                "- **1 · Datos:** Carga los 15,000 títulos en RAM y mide el tiempo en ns.\n"
+                "- **2 · Ordenación:** Sortea campo clave (1–3) y algoritmo.\n"
+                "- **3 · Búsqueda:** Sortea búsqueda Lineal o Binaria (requiere ordenación previa).\n"
+                "- **5 · Método Alfa:** Consulta el algoritmo más seleccionado de tu perfil y el global."
+            )
+
+        st.divider()
+        if st.button("🚪 SALIR", type="primary", use_container_width=True, key="btn_salir_usuario"):
+            cerrar_sesion()
             st.rerun()
-    else:
-        ss.perfil = None
-        st.info("Sin perfil activo. Las ordenaciones solo se cuentan en el Método Alfa general.")
 
-# ───────────────────────────────── Encabezado ─────────────────────────────────
-st.markdown(
-    '<div class="banner"><h1>Distribución y monitoreo de pozos de riego agrícola</h1>'
-    '<p>Proyecto 5 · Registro Público de Derechos de Agua (REPDA – CONAGUA) · Sector primario: gestión del agua</p>'
-    '</div>', unsafe_allow_html=True)
+st.write("")  # espaciado leve antes de las pestañas
 
 filas, t_carga0 = datos()
 t_datos, t_ord, t_bus, t_cmp, t_alfa, t_bib = st.tabs(
@@ -302,13 +452,14 @@ with t_datos:
         ss.t_carga = time.perf_counter_ns() - t0
         st.rerun()
 
+    n_prev = ss.n_preview
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Primeros 30 registros")
-        st.dataframe(a_df(filas[:30]), use_container_width=True, hide_index=True)
+        st.subheader(f"Primeros {n_prev} registros")
+        st.dataframe(a_df(filas[:n_prev]), use_container_width=True, hide_index=True)
     with c2:
-        st.subheader("Últimos 30 registros")
-        st.dataframe(a_df(filas[-30:]), use_container_width=True, hide_index=True)
+        st.subheader(f"Últimos {n_prev} registros")
+        st.dataframe(a_df(filas[-n_prev:]), use_container_width=True, hide_index=True)
 
 # ───────────────────────────── 2 · Ordenación ─────────────────────────────
 with t_ord:
@@ -480,12 +631,12 @@ with t_alfa:
     a1, a2 = st.columns(2)
     with a1:
         st.subheader("Perfil activo")
-        activo = perfiles_global().get(ss.get("perfil"))
-        if activo:
-            mostrar_alfa(f"Método Alfa de `{activo['nombre']}`", activo["conteo"])
+        activo_tab = perfiles_global().get(ss.get("perfil"))
+        if activo_tab:
+            mostrar_alfa(f"Método Alfa de `{activo_tab['nombre']}`", activo_tab["conteo"])
         else:
-            st.info("Crea o inicia un perfil en la barra lateral para ver tu Método Alfa individual. Solo se "
-                    "cuentan las ordenaciones realizadas con el perfil activo.")
+            st.info("Ingresaste sin perfil activo. Puedes activar un usuario desde el menú superior derecho "
+                    "para llevar tu Método Alfa individual.")
     with a2:
         st.subheader("General")
         mostrar_alfa("Método Alfa general", contador_global())
