@@ -20,37 +20,163 @@ CONTADOR = "contador_web.json"   # Método Alfa general
 PERFILES = "perfiles_web.json"   # perfiles de usuario y su Método Alfa individual
 PATRON_ALIAS = re.compile(r"(?=.*\w)[\w .\-]{2,30}")
 
-st.set_page_config(page_title="Pozos de Riego · REPDA", page_icon="💧", layout="wide")
+st.set_page_config(page_title="Pozos de Riego · Proyecto 5", page_icon="💧", layout="wide")
 
-# ───────────── Estilo ─────────────
+# ───────────── Estilo institucional (sin nombres de dependencias) ─────────────
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Noto+Sans:wght@400;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Noto Sans', sans-serif;
+    color: #333333;
+}
+h1, h2, h3, .inst-titulo, .seccion {
+    font-family: 'Montserrat', sans-serif !important;
+}
 footer {visibility: hidden;}
-.block-container {padding-top: 2.2rem; max-width: 1280px;}
-.banner {background: linear-gradient(90deg, #14304D 0%, #1F4E79 100%); padding: 1.5rem 1.8rem;
-         border-radius: 6px; margin-bottom: 1.2rem;}
-.banner h1 {color: #FFFFFF !important; font-size: 1.85rem !important; margin: 0 !important;
-            padding: 0 !important; letter-spacing: .2px;}
-.banner p {color: #D6E2EF !important; margin: .4rem 0 0 0 !important; font-size: .95rem;}
-.login-header {background: linear-gradient(90deg, #14304D 0%, #1F4E79 100%); padding: 1.3rem 1.8rem;
-               border-radius: 10px; text-align: center; margin-bottom: 1.6rem;}
-.login-header h2 {color: #FFFFFF !important; margin: 0 !important; font-size: 1.55rem !important;}
-.login-sub {background: #E8EFF7; color: #14304D; display: inline-block; padding: .25rem 1.1rem;
-            border-radius: 20px; font-weight: 600; font-size: .92rem; margin-top: .5rem;}
-.login-footer {background: #14304D; color: #D6E2EF; text-align: center; padding: .85rem 1rem;
-               border-radius: 8px; margin-top: 2rem; font-size: .88rem;}
-.seccion {border-left: 4px solid #1F4E79; padding-left: .75rem; margin: .3rem 0 .9rem 0;
-          font-size: 1.35rem; font-weight: 600; letter-spacing: .2px;}
-div[data-testid="stMetric"] {border: 1px solid rgba(128,128,128,.35); border-radius: 6px;
-                             padding: .6rem .9rem;}
-div.stButton > button, div[data-testid="stFormSubmitButton"] > button {border-radius: 4px; font-weight: 600;}
-button[data-baseweb="tab"] {font-weight: 600;}
+.block-container {padding-top: 1.5rem; max-width: 1280px;}
+
+/* Franja superior institucional */
+.top-strip {
+    background-color: #611232;
+    color: #FFFFFF;
+    padding: 0.55rem 1.4rem;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    border-bottom: 3px solid #A57F2C;
+    border-radius: 4px 4px 0 0;
+}
+
+/* Encabezado principal */
+.banner {
+    background-color: #F8F8F8;
+    border: 1px solid #E0E0E0;
+    border-top: none;
+    padding: 1.35rem 1.6rem;
+    border-radius: 0 0 4px 4px;
+    margin-bottom: 1rem;
+}
+.banner h1 {
+    color: #222222 !important;
+    font-size: 1.7rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.pleca-dorada {
+    width: 56px;
+    height: 4px;
+    background-color: #A57F2C;
+    margin: 0.55rem 0 0.6rem 0;
+}
+.banner p {
+    color: #545454 !important;
+    margin: 0 !important;
+    font-size: 0.94rem;
+}
+
+/* Encabezado y pie de página de acceso */
+.login-header {
+    background-color: #611232;
+    border-bottom: 4px solid #A57F2C;
+    padding: 1.4rem 1.8rem;
+    border-radius: 4px;
+    text-align: center;
+    margin-bottom: 1.6rem;
+}
+.login-header h2 {
+    color: #FFFFFF !important;
+    margin: 0 !important;
+    font-size: 1.55rem !important;
+    font-weight: 700 !important;
+}
+.login-sub {
+    color: #F3E5AB;
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-top: 0.35rem;
+}
+.inst-footer {
+    background-color: #3B0B1E;
+    color: #F2F2F2;
+    border-top: 4px solid #A57F2C;
+    text-align: center;
+    padding: 1rem 1.2rem;
+    border-radius: 4px;
+    margin-top: 2.2rem;
+    font-size: 0.86rem;
+}
+
+/* Títulos de sección con acento dorado */
+.seccion {
+    color: #222222;
+    font-size: 1.28rem;
+    font-weight: 700;
+    margin: 0.4rem 0 0.2rem 0;
+}
+.seccion-linea {
+    width: 44px;
+    height: 3.5px;
+    background-color: #A57F2C;
+    margin-bottom: 1rem;
+}
+
+/* Tarjetas de métricas */
+div[data-testid="stMetric"] {
+    background-color: #FAFAFA;
+    border: 1px solid #DCDCDC;
+    border-left: 4px solid #611232;
+    border-radius: 4px;
+    padding: 0.65rem 0.95rem;
+}
+
+/* Botones estilo portal institucional */
+div.stButton > button[kind="primary"],
+div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
+    background-color: #611232 !important;
+    border: 1px solid #611232 !important;
+    color: #FFFFFF !important;
+    border-radius: 4px !important;
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 600 !important;
+}
+div.stButton > button[kind="primary"]:hover,
+div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+    background-color: #9B2247 !important;
+    border-color: #9B2247 !important;
+}
+div.stButton > button[kind="secondary"],
+div[data-testid="stFormSubmitButton"] > button[kind="secondary"] {
+    background-color: #FFFFFF !important;
+    border: 1.5px solid #611232 !important;
+    color: #611232 !important;
+    border-radius: 4px !important;
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 600 !important;
+}
+div.stButton > button[kind="secondary"]:hover,
+div[data-testid="stFormSubmitButton"] > button[kind="secondary"]:hover {
+    background-color: #FDF2F5 !important;
+}
+
+/* Pestañas */
+button[data-baseweb="tab"] {
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 600 !important;
+    color: #444444 !important;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #611232 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 
 def seccion(texto):
-    st.markdown(f'<div class="seccion">{texto}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="seccion">{texto}</div><div class="seccion-linea"></div>', unsafe_allow_html=True)
 
 
 # ───────────── Fichas teóricas de cada método (para interpretar los resultados) ─────────────
@@ -168,7 +294,6 @@ def autenticar_usuario(alias, clave_txt, usar_clave=True):
     alias = " ".join(alias.split())
     clave_txt = clave_txt.strip()
 
-    # Acceso rápido como invitado si pulsa "Ingresar sin clave" sin escribir nombre
     if not usar_clave and not alias:
         st.session_state.perfil = None
         st.session_state.usuario_nombre = "Invitado"
@@ -228,16 +353,16 @@ def ejecutar_sorteo(filas):
     ss = st.session_state
     ss.n_ejec = ss.get("n_ejec", 0) + 1
     ss.orden = dict(k=k_sel, campo=campo, metodo=metodo, idx=idx, t=t, c=ct.c, m=ct.m, datos=ordenado)
-    ss.resultado = None  # el resultado anterior pudo hacerse sobre otra ordenación
+    ss.resultado = None
     ss.setdefault("registro", []).append(
         {"Ejecución #": ss.n_ejec, "Campo Clave Seleccionado (1-3)": k_sel, "Nombre del Campo": campo,
          "Método de Ordenamiento Asignado": metodo, "Tiempo de Ejecución (ns)": t})
     ss.setdefault("stats", []).append({"Método": metodo, "t": t, "c": ct.c, "m": ct.m})
 
-    cg = contador_global()          # Método Alfa general
+    cg = contador_global()
     cg[metodo] += 1
     guardar_json(CONTADOR, dict(cg))
-    perfiles = perfiles_global()    # Método Alfa del perfil activo (si hay uno)
+    perfiles = perfiles_global()
     p = perfiles.get(ss.get("perfil"))
     if p is not None:
         p["conteo"][metodo] = p["conteo"].get(metodo, 0) + 1
@@ -267,14 +392,14 @@ def mostrar_alfa(titulo, conteo):
     df = pd.DataFrame({"Método": list(conteo), "Selecciones": list(conteo.values())}).sort_values(
         "Selecciones", ascending=False)
     st.dataframe(df, hide_index=True, use_container_width=True)
-    st.bar_chart(df.set_index("Método"))
+    st.bar_chart(df.set_index("Método"), color="#611232")
 
 
 ss = st.session_state
 ss.setdefault("autenticado", False)
 ss.setdefault("n_preview", 30)
 
-# ───────────── Pantalla Principal: Registro de Usuario (Avance 2 - Pág. 1) ─────────────
+# ───────────── Pantalla Principal: Registro de Usuario ─────────────
 if not ss.autenticado:
     st.markdown(
         '<div class="login-header">'
@@ -287,10 +412,12 @@ if not ss.autenticado:
     _, col_centro, _ = st.columns([1, 1.35, 1])
     with col_centro:
         with st.container(border=True):
-            st.markdown("<h3 style='text-align:center; margin-bottom:0.2rem;'>👤 Registro de Usuario</h3>",
+            st.markdown("<h3 style='text-align:center; color:#222222; margin-bottom:0.2rem;'>Registro de Usuario</h3>",
+                        unsafe_allow_html=True)
+            st.markdown("<div class='pleca-dorada' style='margin:0.4rem auto 0.8rem auto;'></div>",
                         unsafe_allow_html=True)
             st.markdown(
-                "<p style='text-align:center; color:gray; font-size:0.92rem;'>"
+                "<p style='text-align:center; color:#555555; font-size:0.92rem;'>"
                 "Ingresa tus datos para comenzar a explorar los métodos de ordenamiento y búsqueda.</p>",
                 unsafe_allow_html=True,
             )
@@ -319,7 +446,7 @@ if not ss.autenticado:
                        "del general. Si pulsas «Ingresar sin clave» dejando el nombre vacío, entrarás como Invitado.")
 
     st.markdown(
-        '<div class="login-footer">'
+        '<div class="inst-footer">'
         '<strong>Equipo 6:</strong> Leonardo Mendoza Santana y Ricardo &nbsp;|&nbsp; '
         '<strong>IA utilizada:</strong> Claude (Anthropic)'
         '</div>',
@@ -327,15 +454,19 @@ if not ss.autenticado:
     )
     st.stop()
 
-# ───────────── Encabezado y Menú de Usuario (Avance 2 - Pág. 3) ─────────────
+# ───────────── Encabezado y Menú de Usuario ─────────────
 activo = perfiles_global().get(ss.get("perfil"))
 nombre_usuario = activo["nombre"] if activo else (ss.get("usuario_nombre") or "Invitado")
+
+st.markdown('<div class="top-strip">MÉTODOS DE ORDENAMIENTO Y BÚSQUEDA · PROYECTO 5</div>', unsafe_allow_html=True)
 
 col_banner, col_user = st.columns([4.6, 1.4], vertical_alignment="center")
 with col_banner:
     st.markdown(
-        '<div class="banner" style="margin-bottom:0;"><h1>Distribución y monitoreo de pozos de riego agrícola</h1>'
-        '<p>Proyecto 5 · Registro Público de Derechos de Agua (REPDA – CONAGUA) · Sector primario: gestión del agua</p>'
+        '<div class="banner" style="margin-bottom:0;">'
+        '<h1>Distribución y monitoreo de pozos de riego agrícola</h1>'
+        '<div class="pleca-dorada"></div>'
+        '<p>Análisis comparativo en memoria RAM · Sector primario: gestión del agua</p>'
         '</div>', unsafe_allow_html=True)
 
 with col_user:
@@ -399,11 +530,11 @@ with col_user:
             )
 
         st.divider()
-        if st.button("🚪 SALIR", type="primary", use_container_width=True, key="btn_salir_usuario"):
+        if st.button("SALIR", type="primary", use_container_width=True, key="btn_salir_usuario"):
             cerrar_sesion()
             st.rerun()
 
-st.write("")  # espaciado leve antes de las pestañas
+st.write("")
 
 filas, t_carga0 = datos()
 t_datos, t_ord, t_bus, t_cmp, t_alfa, t_bib = st.tabs(
@@ -414,11 +545,10 @@ with t_datos:
     seccion("Presentación del proyecto y carga de datos")
     with st.expander("Introducción del proyecto", expanded=True):
         st.markdown(
-            "La CONAGUA, a través del **REPDA**, administra los títulos de concesión y los volúmenes de extracción "
-            "de los pozos destinados al riego agrícola. Esta aplicación carga **15,000 títulos** en memoria RAM. "
-            "Permite **ordenarlos** con un método elegido al azar según el campo clave sorteado y realizar una "
-            "**búsqueda** (lineal o binaria) también sorteada, midiendo todo en nanosegundos. La ordenación y la "
-            "búsqueda se sortean por separado, y solo se ejecutan cuando el usuario lo solicita."
+            "Esta aplicación carga **15,000 títulos de concesión** de pozos destinados al riego agrícola en "
+            "memoria RAM. Permite **ordenarlos** con un método elegido al azar según el campo clave sorteado y "
+            "realizar una **búsqueda** (lineal o binaria) también sorteada, midiendo todo en nanosegundos. La "
+            "ordenación y la búsqueda se sortean por separado, y solo se ejecutan cuando el usuario lo solicita."
         )
 
     with st.expander("Origen de los datos: qué campos son reales y cuáles simulados"):
@@ -552,7 +682,7 @@ with t_bus:
             with st.form(f"form_busqueda_{n_b}_{n_e}"):
                 valor_txt = st.text_input(f"Dato a buscar en {campo_b}", placeholder=f"ej. {ejemplo}",
                                           key=f"valor_{n_b}_{n_e}_{campo_b}")
-                enviar = st.form_submit_button("Buscar")
+                enviar = st.form_submit_button("Buscar", type="primary")
 
             if enviar and valor_txt.strip():
                 limpio = valor_txt.strip()
@@ -695,3 +825,12 @@ with t_bib:
         "visual; depurar errores; preparar el despliegue público; y proponer mejoras a partir de una "
         "retroalimentación integral del proyecto."
     )
+
+st.markdown(
+    '<div class="inst-footer">'
+    'Proyecto 5 · Métodos de Ordenamiento y Búsqueda &nbsp;|&nbsp; '
+    '<strong>Equipo 6:</strong> Leonardo Mendoza Santana y Ricardo &nbsp;|&nbsp; '
+    '<strong>IA utilizada:</strong> Claude (Anthropic)'
+    '</div>',
+    unsafe_allow_html=True,
+)
