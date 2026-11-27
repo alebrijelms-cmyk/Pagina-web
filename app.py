@@ -441,6 +441,7 @@ def limpiar_estado_sesion():
     claves_borrar = [
         "orden", "n_ejec", "registro", "stats",
         "tipo_busqueda", "n_busq", "resultado",
+        "n_ejec_busq", "registro_busqueda", "stats_busqueda",
         "comparacion", "t_carga",
         "sb_seccion_desplegable", "menu_usuario_opcion",
         "num_preview_datos", "num_preview_menu", "num_ord_preview",
@@ -956,8 +957,23 @@ elif vista == "3 · Búsqueda":
                     t0 = time.perf_counter_ns()
                     hallados, cts = fn(base, idx_b, valor)
                     t_b = time.perf_counter_ns() - t0
+                    ss.n_ejec_busq = ss.get("n_ejec_busq", 0) + 1
                     ss.resultado = dict(tipo=tipo, campo=campo_b, valor=valor, hallados=hallados,
                                         c=cts.c, t=t_b, texto=es_texto and tipo == "Lineal")
+                    ss.setdefault("registro_busqueda", []).append({
+                        "Ejecución #": ss.n_ejec_busq,
+                        "Método de Búsqueda": tipo,
+                        "Campo Buscado": campo_b,
+                        "Dato Buscado": str(valor),
+                        "Coincidencias": len(hallados),
+                        "Comparaciones": cts.c,
+                        "Tiempo de Ejecución (ns)": t_b,
+                    })
+                    ss.setdefault("stats_busqueda", []).append({
+                        "Método": tipo,
+                        "t": t_b,
+                        "c": cts.c,
+                    })
 
             r = ss.get("resultado")
             if r:
@@ -974,14 +990,26 @@ elif vista == "3 · Búsqueda":
                     st.caption("Sin resultados: revisa el formato o prueba con un dato que exista "
                                "(el ejemplo gris del campo existe).")
 
-    st.divider()
-    seccion("Frecuencia de métodos de búsqueda sorteados")
-    mostrar_alfa(
-        "Método de búsqueda más sorteado (general)",
-        contador_busqueda_global(),
-        etiqueta_col="Tipo de búsqueda",
-        color_barra="#1E5B4F",
-    )
+    if ss.get("registro_busqueda"):
+        st.divider()
+        seccion("Registro de ejecuciones")
+        reg_b = pd.DataFrame(ss.registro_busqueda)
+        st.dataframe(reg_b, hide_index=True, use_container_width=True)
+        st.download_button("Descargar registro (CSV)", reg_b.to_csv(index=False).encode("utf-8-sig"),
+                           "registro_busquedas.csv", "text/csv")
+
+        st.subheader("Resumen por método (esta sesión)")
+        est_b = pd.DataFrame(ss.stats_busqueda)
+        resumen_b = est_b.groupby("Método").agg(
+            Veces=("t", "size"),
+            **{
+                "Tiempo promedio (ns)": ("t", "mean"),
+                "Tiempo mínimo (ns)": ("t", "min"),
+                "Tiempo máximo (ns)": ("t", "max"),
+                "Comparaciones (prom.)": ("c", "mean"),
+            },
+        ).round(0).astype(int).reset_index()
+        st.dataframe(resumen_b, hide_index=True, use_container_width=True)
 
 # ───────────────────────────── 4 · Análisis comparativo ─────────────────────────────
 elif vista == "4 · Análisis comparativo":
@@ -1094,35 +1122,4 @@ elif vista == "6 · Bibliografía":
     st.subheader("Herramientas de software")
     st.markdown(
         "- Python Software Foundation. *Python*. [https://www.python.org](https://www.python.org)\n"
-        "- Streamlit Inc. *Streamlit* (interfaz web y Streamlit Community Cloud para el despliegue público). "
-        "[https://docs.streamlit.io](https://docs.streamlit.io)\n"
-        "- The pandas development team. *pandas* (manejo de tablas de datos). "
-        "[https://pandas.pydata.org](https://pandas.pydata.org)\n"
-        "- Gazoni, E. y Clark, C. *openpyxl* (lectura y escritura de archivos Excel). "
-        "[https://openpyxl.readthedocs.io](https://openpyxl.readthedocs.io)\n"
-        "- GitHub, Inc. *GitHub* (repositorio del código). [https://github.com](https://github.com)"
-    )
-
-    st.subheader("Uso de inteligencia artificial")
-    st.markdown(
-        "- Anthropic. (2026). *Claude* (modelo Claude Sonnet 5.5) [Asistente de inteligencia artificial]. "
-        "[https://claude.ai](https://claude.ai)"
-    )
-    st.markdown(
-        "Claude se utilizó como asistente de programación durante todo el proyecto para: analizar el documento de "
-        "requerimientos; identificar los campos del Excel y mapearlos a las columnas del REPDA; escribir los "
-        "scripts en Python que preparan los 15,000 registros; implementar los algoritmos de ordenamiento (Radix, "
-        "Counting, Bucket, Quick, Merge y Heap Sort) y de búsqueda (lineal y binaria) con su medición en "
-        "nanosegundos; construir la interfaz web con Streamlit, incluidos los perfiles de usuario y el rediseño "
-        "visual; depurar errores; preparar el despliegue público; y proponer mejoras a partir de una "
-        "retroalimentación integral del proyecto."
-    )
-
-st.markdown(
-    '<div class="inst-footer">'
-    'Proyecto 5 · Métodos de Ordenamiento y Búsqueda &nbsp;|&nbsp; '
-    '<strong>Equipo 6:</strong> Leonardo Mendoza Santana y Ricardo &nbsp;|&nbsp; '
-    '<strong>IA utilizada:</strong> Claude (Anthropic)'
-    '</div>',
-    unsafe_allow_html=True,
-)
+        "- Streamlit Inc. *Streamlit*
