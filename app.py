@@ -16,9 +16,9 @@ import streamlit as st
 import proyecto_pozos as pp  # mismas funciones: cargar, algoritmos, búsquedas, constantes
 
 ARCHIVO = "Pozos_Riego_15000.xlsx"
-CONTADOR = "contador_web.json"                 # Método Alfa general (ordenación)
+CONTADOR = "contador_web.json"                    # Método Alfa general (ordenación)
 CONTADOR_BUSQUEDA = "contador_busqueda_web.json"  # Frecuencia general (búsqueda)
-PERFILES = "perfiles_web.json"                 # Perfiles de usuario y sus conteos individuales
+PERFILES = "perfiles_web.json"                    # Perfiles de usuario y sus conteos individuales
 PATRON_ALIAS = re.compile(r"(?=.*\w)[\w .\-]{2,30}")
 
 SECCIONES = [
@@ -436,12 +436,30 @@ def perfiles_global():
     return ok
 
 
+def limpiar_estado_sesion():
+    """Limpia por completo las ejecuciones previas, resultados y navegación de la sesión."""
+    claves_borrar = [
+        "orden", "n_ejec", "registro", "stats",
+        "tipo_busqueda", "n_busq", "resultado",
+        "comparacion", "t_carga",
+        "sb_seccion_desplegable", "menu_usuario_opcion",
+        "num_preview_datos", "num_preview_menu", "num_ord_preview",
+        "campo_cmp",
+    ]
+    for clave in claves_borrar:
+        st.session_state.pop(clave, None)
+    st.session_state["seccion_activa"] = SECCIONES[0]
+    st.session_state["n_preview"] = 30
+    st.session_state["n_ord_preview"] = 30
+
+
 def autenticar_usuario(alias, clave_txt, usar_clave=True):
     """Gestiona el acceso desde la pantalla principal (con clave, sin clave o invitado)."""
     alias = " ".join(alias.split())
     clave_txt = clave_txt.strip()
 
     if not usar_clave and not alias:
+        limpiar_estado_sesion()
         st.session_state.perfil = None
         st.session_state.usuario_nombre = "Invitado"
         st.session_state.autenticado = True
@@ -460,11 +478,13 @@ def autenticar_usuario(alias, clave_txt, usar_clave=True):
                 return False, f"El usuario `{reg['nombre']}` requiere su clave para ingresar."
             if hash_clave(clave_txt) != reg["clave_hash"]:
                 return False, "Clave incorrecta para este usuario."
+        limpiar_estado_sesion()
         st.session_state.perfil = clave
         st.session_state.usuario_nombre = reg["nombre"]
         st.session_state.autenticado = True
         return True, f"Bienvenido de nuevo, `{reg['nombre']}`."
 
+    limpiar_estado_sesion()
     perfiles[clave] = {
         "nombre": alias,
         "clave_hash": hash_clave(clave_txt) if (usar_clave and clave_txt) else None,
@@ -479,6 +499,7 @@ def autenticar_usuario(alias, clave_txt, usar_clave=True):
 
 
 def cerrar_sesion():
+    limpiar_estado_sesion()
     st.session_state.autenticado = False
     st.session_state.perfil = None
     st.session_state.usuario_nombre = None
