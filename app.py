@@ -751,4 +751,357 @@ filas, t_carga0 = datos()
 
 # ───────────────────────────── 1 · Datos ─────────────────────────────
 if vista == "1 · Datos":
-    seccion("Presentación del proyecto y
+    seccion("Presentación del proyecto y carga de datos")
+    with st.expander("Introducción del proyecto", expanded=True):
+        col_intro_txt, col_intro_img = st.columns([1.45, 1], vertical_alignment="center")
+        with col_intro_txt:
+            st.markdown(
+                "Esta aplicación carga **15,000 títulos de concesión** de pozos destinados al riego agrícola en "
+                "memoria RAM. Permite **ordenarlos** con un método elegido al azar según el campo clave sorteado y "
+                "realizar una **búsqueda** (lineal o binaria) también sorteada, midiendo todo en nanosegundos.\n\n"
+                "La ordenación y la búsqueda se sortean por separado, y solo se ejecutan cuando el usuario lo "
+                "solicita, registrando comparaciones, movimientos y el algoritmo dominante (**Método Alfa**)."
+            )
+        with col_intro_img:
+            st.markdown(SVG_POZOS_DATOS, unsafe_allow_html=True)
+
+    with st.expander("Origen de los datos: qué campos son reales y cuáles simulados"):
+        st.markdown(
+            "Los registros provienen del reporte público del REPDA (aprovechamientos de uso **agrícola** con "
+            "extracción de **aguas subterráneas**). Ese reporte **no publica** municipio, profundidad, estatus ni "
+            "caudal del pozo, por lo que esos cuatro campos se **simularon** para completar la estructura de 10 "
+            "campos pedida en el proyecto."
+        )
+        st.dataframe(pd.DataFrame([
+            ("id_titulo_concesion", "Real", "Folio numérico del número de título"),
+            ("volumen_extraido_m3", "Real", "Volumen de extracción anual, redondeado"),
+            ("fecha_concesion", "Real", "Fecha de registro del título (AAAAMMDD)"),
+            ("nombre_titular", "Real", "Titular del título"),
+            ("estado", "Real", "Entidad federativa tomada de la clave del título"),
+            ("uso_principal", "Real", "Uso agrícola"),
+            ("municipio", "Simulado", "Municipio agrícola del estado, al azar"),
+            ("profundidad_pozo_m", "Simulado", "Valor aleatorio entre 15 y 450 m"),
+            ("estatus_pozo", "Simulado", "Activo, Mantenimiento, Suspendido o Clausurado"),
+            ("caudal_litros_segundo", "Simulado", "Estimado a partir del volumen anual (12 h/día de bombeo)"),
+        ], columns=["Campo", "Origen", "Detalle"]), hide_index=True, use_container_width=True)
+
+    t_carga = ss.get("t_carga", t_carga0)
+    st.success(f"Se cargaron **{len(filas):,}** registros en memoria RAM en **{t_carga:,} nanosegundos**.")
+    cc1, cc2 = st.columns([3, 1])
+    cc1.caption("El tiempo mostrado inicialmente es el de la primera carga del servidor; después los datos "
+                "permanecen en RAM. Puedes medir una carga nueva con el botón.")
+    if cc2.button("Medir la carga de nuevo", key="btn_carga"):
+        t0 = time.perf_counter_ns()
+        pp.cargar(ARCHIVO)
+        ss.t_carga = time.perf_counter_ns() - t0
+        st.rerun()
+
+    st.divider()
+    col_cant, _ = st.columns([1.4, 2.6])
+    with col_cant:
+        st.number_input(
+            "Cantidad de registros a visualizar (primeros y últimos)",
+            min_value=1, max_value=len(filas), value=ss.n_preview, step=5,
+            key="num_preview_datos", on_change=_sync_preview_datos
+        )
+    n_prev = ss.n_preview
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader(f"Primeros {n_prev:,} registros")
+        st.dataframe(a_df(filas[:n_prev]), use_container_width=True, hide_index=True)
+    with c2:
+        st.subheader(f"Últimos {n_prev:,} registros")
+        st.dataframe(a_df(filas[-n_prev:]), use_container_width=True, hide_index=True)
+
+# ───────────────────────────── 2 · Ordenación ─────────────────────────────
+elif vista == "2 · Ordenación":
+    seccion("Disparador aleatorio de ordenación", SVG_ORDENACION)
+    st.write("Al pulsar el botón se sortea el campo clave (1 a 3) y el método de ordenamiento que le corresponde. "
+             "La ordenación solo se ejecuta cuando la solicitas.")
+    etiqueta = "Repetir ordenación aleatoria" if "orden" in ss else "Ejecutar ordenación aleatoria"
+    if st.button(etiqueta, type="primary", key="btn_orden"):
+        with st.spinner("Sorteando campo y método, y ordenando 15,000 registros…"):
+            ejecutar_sorteo(filas)
+
+    if "orden" not in ss:
+        st.info("Aún no se ha ejecutado ninguna ordenación.")
+    else:
+        o = ss.orden
+        st.info(f"Campo clave sorteado: **{o['k']}** ({o['campo']}) · Método sorteado: **{o['metodo']}**")
+        st.success(
+            f"Se ordenaron {len(o['datos']):,} registros por el campo **{o['campo']}** usando el método "
+            f"**{o['metodo']}** en **{o['t']:,}** nanosegundos. Comparaciones: **{o['c']:,}**, "
+            f"Intercambios/Movimientos: **{o['m']:,}**"
+        )
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Tiempo (ns)", f"{o['t']:,}")
+        m2.metric("Comparaciones", f"{o['c']:,}")
+        m3.metric("Intercambios / Movimientos", f"{o['m']:,}")
+
+        inf = INFO[o["metodo"]]
+        with st.container(border=True):
+            st.markdown(f"**Interpretación del resultado · {o['metodo']}** — {inf['tipo']}")
+            st.markdown(f"- **Idea:** {inf['idea']}")
+            st.markdown(f"- **Complejidad:** mejor {inf['mejor']} · promedio {inf['prom']} · peor {inf['peor']} · "
+                        f"espacio {inf['espacio']} · estable: {inf['estable']}")
+            st.markdown(f"- **En esta ejecución:** {o['t'] / len(o['datos']):,.0f} ns por registro; "
+                        f"{o['c'] / len(o['datos']):,.1f} comparaciones y {o['m'] / len(o['datos']):,.1f} "
+                        f"movimientos por registro.")
+            st.markdown(f"- **Nota:** {inf['nota']}")
+
+        col_cant_ord, _ = st.columns([1.4, 2.6])
+        with col_cant_ord:
+            st.number_input(
+                "Cantidad de registros ordenados a visualizar",
+                min_value=1, max_value=len(o["datos"]), value=ss.n_ord_preview, step=5,
+                key="num_ord_preview", on_change=_sync_ord_preview
+            )
+        n_op = ss.n_ord_preview
+
+        f1, f2 = st.columns(2)
+        f1.markdown(f"**Primeros {n_op:,} ordenados**")
+        f1.dataframe(a_df(o["datos"][:n_op]), hide_index=True, use_container_width=True)
+        f2.markdown(f"**Últimos {n_op:,} ordenados**")
+        f2.dataframe(a_df(o["datos"][-n_op:]), hide_index=True, use_container_width=True)
+
+        st.divider()
+        seccion("Registro de ejecuciones")
+        reg = pd.DataFrame(ss.registro)
+        st.dataframe(reg, hide_index=True, use_container_width=True)
+        st.download_button("Descargar registro (CSV)", reg.to_csv(index=False).encode("utf-8-sig"),
+                           "registro_ejecuciones.csv", "text/csv")
+
+        st.subheader("Resumen por método (esta sesión)")
+        est = pd.DataFrame(ss.stats)
+        resumen = est.groupby("Método").agg(
+            Veces=("t", "size"), **{"Tiempo promedio (ns)": ("t", "mean"), "Tiempo mínimo (ns)": ("t", "min"),
+                                    "Tiempo máximo (ns)": ("t", "max"), "Comparaciones (prom.)": ("c", "mean"),
+                                    "Movimientos (prom.)": ("m", "mean")}).round(0).astype(int).reset_index()
+        st.dataframe(resumen, hide_index=True, use_container_width=True)
+        st.caption("Cada método se ejecuta sobre el campo que le tocó en el sorteo, así que estos tiempos no son "
+                   "directamente comparables entre métodos. Para una comparación justa usa la sección 4.")
+
+# ───────────────────────────── 3 · Búsqueda ─────────────────────────────
+elif vista == "3 · Búsqueda":
+    seccion("Disparador aleatorio de búsqueda", SVG_BUSQUEDA)
+    st.write("El tipo de búsqueda (lineal o binaria) se sortea de forma independiente a la ordenación.")
+    if st.button("Sortear tipo de búsqueda", type="primary", key="btn_busq"):
+        sortear_busqueda()
+
+    tipo = ss.get("tipo_busqueda")
+    if tipo is None:
+        st.info("Aún no se ha sorteado el tipo de búsqueda.")
+    else:
+        st.info(f"Tipo de búsqueda sorteada: **{tipo}**")
+        if tipo == "Binaria" and "orden" not in ss:
+            st.warning("La búsqueda binaria requiere un campo clave ordenado. Ejecuta primero la ordenación en la "
+                       "sección «2 · Ordenación» y regresa aquí.")
+        else:
+            n_b, n_e = ss.get("n_busq", 0), ss.get("n_ejec", 0)
+            if tipo == "Binaria":
+                o = ss.orden
+                campo_b, base, idx_b = o["campo"], o["datos"], o["idx"]
+                st.write(f"Se usará el campo clave de la última ordenación: **{campo_b}** (método {o['metodo']}).")
+            else:
+                campo_b = st.selectbox("Campo donde buscar (clave o informativo)", pp.CAMPOS,
+                                       key=f"campo_busq_{n_b}")
+                base, idx_b = filas, pp.CAMPOS.index(campo_b)
+
+            es_texto = campo_b in pp.CAMPOS_TEXTO
+            ejemplo = str(random.Random(n_b * 1000 + n_e).choice(base)[idx_b])
+            st.caption("Formato esperado: " + (AYUDA_TEXTO if es_texto else AYUDA[campo_b]))
+            with st.form(f"form_busqueda_{n_b}_{n_e}"):
+                valor_txt = st.text_input(f"Dato a buscar en {campo_b}", placeholder=f"ej. {ejemplo}",
+                                          key=f"valor_{n_b}_{n_e}_{campo_b}")
+                enviar = st.form_submit_button("Buscar", type="primary")
+
+            if enviar and valor_txt.strip():
+                limpio = valor_txt.strip()
+                if not es_texto:
+                    limpio = limpio.replace(" ", "")
+                    limpio = limpio.replace(",", ".") if campo_b in ("profundidad_pozo_m", "caudal_litros_segundo") \
+                        else limpio.replace(",", "")
+                try:
+                    valor = pp.convertir(limpio, campo_b)
+                except ValueError:
+                    st.error("Valor no válido para ese campo. Revisa el formato esperado.")
+                else:
+                    if tipo == "Binaria":
+                        fn = pp.busqueda_binaria
+                    elif es_texto:
+                        fn = pp.busqueda_lineal_texto
+                    else:
+                        fn = pp.busqueda_lineal
+                    t0 = time.perf_counter_ns()
+                    hallados, cts = fn(base, idx_b, valor)
+                    t_b = time.perf_counter_ns() - t0
+                    ss.resultado = dict(tipo=tipo, campo=campo_b, valor=valor, hallados=hallados,
+                                        c=cts.c, t=t_b, texto=es_texto and tipo == "Lineal")
+
+            r = ss.get("resultado")
+            if r:
+                msg = (f"Búsqueda {r['tipo']} en {r['campo']} = {r['valor']}: **{len(r['hallados']):,}** "
+                       f"coincidencia(s), **{r['c']:,}** comparaciones, **{r['t']:,}** nanosegundos.")
+                if r["texto"]:
+                    msg += " (Sin distinguir mayúsculas/acentos; coincidencia parcial.)"
+                (st.success if r["hallados"] else st.warning)(msg)
+                if r["hallados"]:
+                    st.dataframe(a_df(r["hallados"][:50]), hide_index=True, use_container_width=True)
+                    if len(r["hallados"]) > 50:
+                        st.caption(f"Se muestran 50 de {len(r['hallados']):,} coincidencias.")
+                else:
+                    st.caption("Sin resultados: revisa el formato o prueba con un dato que exista "
+                               "(el ejemplo gris del campo existe).")
+
+    st.divider()
+    seccion("Frecuencia de métodos de búsqueda sorteados")
+    mostrar_alfa(
+        "Método de búsqueda más sorteado (general)",
+        contador_busqueda_global(),
+        etiqueta_col="Tipo de búsqueda",
+        color_barra="#1E5B4F",
+    )
+
+# ───────────────────────────── 4 · Análisis comparativo ─────────────────────────────
+elif vista == "4 · Análisis comparativo":
+    seccion("Análisis comparativo (complementario)")
+    st.caption("Ejecuta varios métodos sobre el mismo campo para compararlos en igualdad de condiciones. "
+               "No modifica el registro ni el Método Alfa.")
+    campo_cmp = st.selectbox("Campo a comparar", list(APLICABLES), key="campo_cmp")
+    if st.button("Comparar métodos", type="primary", key="btn_cmp"):
+        idx_c = pp.CAMPOS.index(campo_cmp)
+        filas_cmp = []
+        with st.spinner("Ejecutando métodos…"):
+            for met in APLICABLES[campo_cmp]:
+                ctc = pp.Cont()
+                t0 = time.perf_counter_ns()
+                res = pp.ALGORITMOS[met](filas, idx_c, ctc)
+                tc = time.perf_counter_ns() - t0
+                ok = all(res[i][idx_c] <= res[i + 1][idx_c] for i in range(len(res) - 1))
+                filas_cmp.append({"Método": met, "Tiempo (ns)": tc, "Comparaciones": ctc.c,
+                                  "Movimientos": ctc.m, "Orden correcto": "Sí" if ok else "No"})
+        d = pd.DataFrame(filas_cmp).sort_values("Tiempo (ns)").reset_index(drop=True)
+        d["Veces más lento que el mejor"] = (d["Tiempo (ns)"] / d["Tiempo (ns)"].min()).round(1)
+        ss.comparacion = (campo_cmp, d)
+
+    if ss.get("comparacion"):
+        cc, dcmp = ss.comparacion
+        st.markdown(f"**Resultado sobre `{cc}`** — el más rápido fue **{dcmp.iloc[0]['Método']}**.")
+        st.dataframe(dcmp, hide_index=True, use_container_width=True)
+        st.caption("Los tiempos varían un poco entre corridas por la carga del servidor; repite para confirmar "
+                   "tendencias.")
+    else:
+        st.info("Aún no se ha ejecutado ninguna comparación.")
+
+# ───────────────────────────── 5 · Método Alfa ─────────────────────────────
+elif vista == "5 · Método Alfa":
+    seccion("Método Alfa · Ordenación", SVG_ALFA)
+    st.write("El Método Alfa es el método de ordenamiento más veces seleccionado por el sorteo. Se lleva por "
+             "separado para tu perfil y para el conjunto de todas las ordenaciones.")
+    a1, a2 = st.columns(2)
+    with a1:
+        st.subheader("Perfil activo")
+        activo_tab = perfiles_global().get(ss.get("perfil"))
+        if activo_tab:
+            mostrar_alfa(f"Método Alfa de `{activo_tab['nombre']}`", activo_tab["conteo"])
+        else:
+            st.info("Ingresaste sin perfil activo. Puedes activar un usuario desde el menú superior derecho "
+                    "para llevar tu Método Alfa individual.")
+    with a2:
+        st.subheader("General")
+        mostrar_alfa("Método Alfa general", contador_global())
+        st.caption("Incluye todas las ordenaciones de todos los visitantes. Se reinicia si el servidor se reinicia.")
+
+    st.divider()
+    seccion("Frecuencia de métodos de búsqueda")
+    st.write("Conteo acumulado de las veces que el disparador aleatorio ha seleccionado **Búsqueda Lineal** o "
+             "**Búsqueda Binaria**.")
+    b1, b2 = st.columns(2)
+    with b1:
+        st.subheader("Perfil activo")
+        if activo_tab:
+            mostrar_alfa(
+                f"Búsqueda más sorteada de `{activo_tab['nombre']}`",
+                activo_tab.get("conteo_busqueda", {}),
+                etiqueta_col="Tipo de búsqueda",
+                color_barra="#A57F2C",
+            )
+        else:
+            st.info("Inicia un perfil en el menú superior derecho para llevar tu conteo individual de búsqueda.")
+    with b2:
+        st.subheader("General")
+        mostrar_alfa(
+            "Búsqueda más sorteada (general)",
+            contador_busqueda_global(),
+            etiqueta_col="Tipo de búsqueda",
+            color_barra="#1E5B4F",
+        )
+
+    perfiles = perfiles_global()
+    if perfiles:
+        st.divider()
+        st.subheader("Perfiles registrados")
+        filas_p = []
+        for p in perfiles.values():
+            cont = {m: n for m, n in p["conteo"].items() if n > 0}
+            cont_b = {m: n for m, n in p.get("conteo_busqueda", {}).items() if n > 0}
+            filas_p.append({
+                "Perfil": p["nombre"],
+                "Ordenaciones": sum(cont.values()),
+                "Método Alfa": ", ".join(alfa_de(cont)[0]) if cont else "—",
+                "Búsquedas sorteadas": sum(cont_b.values()),
+                "Búsqueda frecuente": ", ".join(alfa_de(cont_b)[0]) if cont_b else "—",
+            })
+        st.dataframe(pd.DataFrame(filas_p).sort_values("Ordenaciones", ascending=False),
+                     hide_index=True, use_container_width=True)
+
+# ───────────────────────────── 6 · Bibliografía ─────────────────────────────
+elif vista == "6 · Bibliografía":
+    seccion("Bibliografía y recursos utilizados")
+
+    st.subheader("Fuentes de datos")
+    st.markdown(
+        "- Comisión Nacional del Agua [CONAGUA]. (s. f.). *Registro Público de Derechos de Agua (REPDA)*. "
+        "Gobierno de México. Reporte de títulos de concesión (`ReporteRepda.csv`). "
+        "[https://www.gob.mx/conagua](https://www.gob.mx/conagua)\n"
+        "- Gobierno de México. (s. f.). *Catálogo de Datos Abiertos del Gobierno Federal*. "
+        "[https://www.datos.gob.mx/](https://www.datos.gob.mx/)"
+    )
+    st.caption("Los campos municipio, profundidad, estatus y caudal del pozo no provienen de estas fuentes: "
+               "fueron simulados (ver «Origen de los datos» en la sección 1).")
+
+    st.subheader("Herramientas de software")
+    st.markdown(
+        "- Python Software Foundation. *Python*. [https://www.python.org](https://www.python.org)\n"
+        "- Streamlit Inc. *Streamlit* (interfaz web y Streamlit Community Cloud para el despliegue público). "
+        "[https://docs.streamlit.io](https://docs.streamlit.io)\n"
+        "- The pandas development team. *pandas* (manejo de tablas de datos). "
+        "[https://pandas.pydata.org](https://pandas.pydata.org)\n"
+        "- Gazoni, E. y Clark, C. *openpyxl* (lectura y escritura de archivos Excel). "
+        "[https://openpyxl.readthedocs.io](https://openpyxl.readthedocs.io)\n"
+        "- GitHub, Inc. *GitHub* (repositorio del código). [https://github.com](https://github.com)"
+    )
+
+    st.subheader("Uso de inteligencia artificial")
+    st.markdown(
+        "- Anthropic. (2026). *Claude* (modelo Claude Sonnet 5.5) [Asistente de inteligencia artificial]. "
+        "[https://claude.ai](https://claude.ai)"
+    )
+    st.markdown(
+        "Claude se utilizó como asistente de programación durante todo el proyecto para: analizar el documento de "
+        "requerimientos; identificar los campos del Excel y mapearlos a las columnas del REPDA; escribir los "
+        "scripts en Python que preparan los 15,000 registros; implementar los algoritmos de ordenamiento (Radix, "
+        "Counting, Bucket, Quick, Merge y Heap Sort) y de búsqueda (lineal y binaria) con su medición en "
+        "nanosegundos; construir la interfaz web con Streamlit, incluidos los perfiles de usuario y el rediseño "
+        "visual; depurar errores; preparar el despliegue público; y proponer mejoras a partir de una "
+        "retroalimentación integral del proyecto."
+    )
+
+st.markdown(
+    '<div class="inst-footer">'
+    'Proyecto 5 · Métodos de Ordenamiento y Búsqueda &nbsp;|&nbsp; '
+    '<strong>Equipo 6:</strong> Leonardo Mendoza Santana y Ricardo &nbsp;|&nbsp; '
+    '<strong>IA utilizada:</strong> Claude (Anthropic)'
+    '</div>',
+    unsafe_allow_html=True,
+)
